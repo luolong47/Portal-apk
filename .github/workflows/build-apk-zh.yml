@@ -55,10 +55,8 @@ jobs:
         run: |
           echo ${{ secrets.SIGN_KEYSTORE_BASE64 }} | base64 -d > keystore.jks
           chmod +x ./gradlew
-          ./gradlew :app:assembleRelease --build-cache --parallel --warning-mode all --stacktrace
-          echo "APK_FILE_ALL=$(find app/build/outputs/apk/app/release -name '*.apk')" >> $GITHUB_ENV
+          ./gradlew :app:assembleArm64Release --build-cache --parallel --warning-mode all --stacktrace
           echo "APK_FILE_ARM64=$(find app/build/outputs/apk/arm64/release -name '*.apk')" >> $GITHUB_ENV
-          echo "APK_FILE_X86_64=$(find app/build/outputs/apk/x64/release -name '*.apk')" >> $GITHUB_ENV
         env:
           KEYSTORE_PATH: "../keystore.jks"
           KEYSTORE_PASSWORD: ${{ secrets.SIGN_KEYSTORE_PASSWORD }}
@@ -67,39 +65,44 @@ jobs:
 
       - name: 设置Portal版本
         run: |
-          version_name_all=$(basename -s .apk "${{ env.APK_FILE_ALL }}")
           version_name_arm64=$(basename -s .apk "${{ env.APK_FILE_ARM64 }}")
-          version_name_x86_64=$(basename -s .apk "${{ env.APK_FILE_X86_64 }}")
-          echo "PORTAL_VERSION_ALL=$version_name_all" >> $GITHUB_ENV
           echo "PORTAL_VERSION_ARM64=$version_name_arm64" >> $GITHUB_ENV
-          echo "PORTAL_VERSION_x86_64=$version_name_x86_64" >> $GITHUB_ENV
 
       - name: 显示构建产物SHA256
+        id: get_sha
         run: |
           echo "### 构建成功 :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "|ABI|SHA256|" >> $GITHUB_STEP_SUMMARY
           echo "|:--------:|:----------|" >> $GITHUB_STEP_SUMMARY
-          all=($(sha256sum "${{ env.APK_FILE_ALL }}"))
-          echo "|all|$all" >> $GITHUB_STEP_SUMMARY
           arm64=($(sha256sum "${{ env.APK_FILE_ARM64 }}"))
           echo "|arm64|$arm64" >> $GITHUB_STEP_SUMMARY
-          x86_64=($(sha256sum "${{ env.APK_FILE_X86_64 }}"))
-          echo "|x86_64|$x86_64" >> $GITHUB_STEP_SUMMARY
+          echo "sha256=$arm64" >> $GITHUB_OUTPUT
 
-      - name: 上传ALL APK RELEASE
-        uses: actions/upload-artifact@v4
+      - name: 创建GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: "${{ env.PORTAL_VERSION_ALL }}"
-          path: "${{ env.APK_FILE_ALL }}"
+          tag_name: ${{ env.PORTAL_VERSION_ARM64 }}
+          release_name: Portal ${{ env.PORTAL_VERSION_ARM64 }}
+          body: |
+            ## 更新内容
+            - 构建版本: ${{ env.PORTAL_VERSION_ARM64 }}
+            - 架构: ARM64
+            - SHA256: ${{ steps.get_sha.outputs.sha256 }}
+            
+            ## 下载
+            请从下方的Assets中下载APK文件进行安装。
+          draft: false
+          prerelease: false
 
-      - name: 上传ARM64 APK RELEASE
-        uses: actions/upload-artifact@v4
+      - name: 上传APK到Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          name: "${{ env.PORTAL_VERSION_ARM64 }}"
-          path: "${{ env.APK_FILE_ARM64 }}"
-
-      - name: 上传X86_64 APK RELEASE
-        uses: actions/upload-artifact@v4
-        with:
-          name: "${{ env.PORTAL_VERSION_x86_64 }}"
-          path: "${{ env.APK_FILE_X86_64 }}"
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ${{ env.APK_FILE_ARM64 }}
+          asset_name: ${{ env.PORTAL_VERSION_ARM64 }}.apk
+          asset_content_type: application/vnd.android.package-archive
