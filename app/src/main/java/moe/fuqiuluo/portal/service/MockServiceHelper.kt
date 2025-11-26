@@ -25,6 +25,11 @@ import moe.fuqiuluo.portal.ext.loopBroadcastlocation
 import moe.fuqiuluo.xposed.utils.FakeLoc
 import java.io.File
 
+/**
+ * 位置模拟服务助手类
+ * 
+ * 提供与位置模拟服务的通信接口，包括启动/停止模拟、设置位置参数等功能
+ */
 object MockServiceHelper {
     const val PROVIDER_NAME = "portal"
     private lateinit var randomKey: String
@@ -32,6 +37,13 @@ object MockServiceHelper {
     private var loopThread :Thread ?= null
     @Volatile private var isRunning = false
 
+    /**
+     * 尝试初始化位置模拟服务
+     * 
+     * 与LocationManager建立通信，获取随机密钥用于后续命令交互
+     * 
+     * @param locationManager 位置管理器
+     */
     fun tryInitService(locationManager: LocationManager) {
         val rely = Bundle()
         Log.d("MockServiceHelper", "Try to init service")
@@ -117,6 +129,15 @@ object MockServiceHelper {
         return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
     }
 
+    /**
+     * 尝试开启位置模拟
+     * 
+     * @param locationManager 位置管理器
+     * @param speed 速度
+     * @param altitude 海拔高度
+     * @param accuracy 精度
+     * @return 是否成功开启模拟
+     */
     fun tryOpenMock(
         locationManager: LocationManager,
         speed: Double,
@@ -139,6 +160,12 @@ object MockServiceHelper {
         }
     }
 
+    /**
+     * 尝试关闭位置模拟
+     * 
+     * @param locationManager 位置管理器
+     * @return 是否成功关闭模拟
+     */
     fun tryCloseMock(locationManager: LocationManager): Boolean {
         if (!::randomKey.isInitialized) {
             return false
@@ -277,6 +304,14 @@ object MockServiceHelper {
         return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
     }
 
+    /**
+     * 设置模拟位置
+     * 
+     * @param locationManager 位置管理器
+     * @param lat 纬度
+     * @param lon 经度
+     * @return 是否成功设置位置
+     */
     fun setLocation(locationManager: LocationManager, lat: Double, lon: Double): Boolean {
         return updateLocation(locationManager, lat, lon, "=")
     }
@@ -380,6 +415,14 @@ object MockServiceHelper {
     }
 
 
+    /**
+     * 加载Portal库
+     * 
+     * 将应用内的libportal.so复制到系统目录并加载
+     * 
+     * @param context 应用上下文
+     * @return 是否成功加载库
+     */
     @SuppressLint("DiscouragedPrivateApi")
     fun loadPortalLibrary(context: Context): Boolean {
         if (!ShellUtils.hasRoot()) return false

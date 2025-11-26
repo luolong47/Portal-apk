@@ -7,6 +7,12 @@ import com.baidu.mapapi.map.MyLocationConfiguration
 import com.baidu.mapapi.search.sug.SuggestionResult
 import moe.fuqiuluo.portal.ext.Loc4j
 
+/**
+ * 将百度地图搜索结果转换为POI对象
+ * 
+ * @param currentLocation 当前位置，用于计算距离
+ * @return 转换后的POI列表
+ */
 fun SuggestionResult.toPoi(
     currentLocation: Pair<Double, Double>? = null
 ) = this.allSuggestions
@@ -42,10 +48,21 @@ fun SuggestionResult.toPoi(
     }
 }
 
+/**
+ * 设置百度地图配置
+ * 
+ * @param mode 位置模式
+ * @param resourceId 图标资源ID
+ */
 fun BaiduMap.setMapConfig(mode: MyLocationConfiguration.LocationMode, resourceId: Int?) {
     setMyLocationConfiguration(MyLocationConfiguration(mode, true,  resourceId?.let { BitmapDescriptorFactory.fromResource(it) }))
 }
 
+/**
+ * 定位到当前位置
+ * 
+ * 设置地图为跟随模式，显示当前位置
+ */
 fun BaiduMap.locateMe() {
     setMyLocationConfiguration(MyLocationConfiguration(MyLocationConfiguration.LocationMode.FOLLOWING, true, null))
     setMyLocationConfiguration(MyLocationConfiguration(MyLocationConfiguration.LocationMode.NORMAL, true, null))

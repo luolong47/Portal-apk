@@ -1,6 +1,16 @@
 package moe.fuqiuluo.portal.android.root
 
+/**
+ * Shell命令工具类
+ * 
+ * 提供Root权限检查和Shell命令执行功能，用于系统级操作
+ */
 object ShellUtils {
+    /**
+     * 检查设备是否具有Root权限
+     * 
+     * @return 是否具有Root权限
+     */
     fun hasRoot(): Boolean {
         val runtime = Runtime.getRuntime()
         try {
@@ -14,6 +24,11 @@ object ShellUtils {
         }
     }
 
+    /**
+     * 设置SELinux强制模式
+     * 
+     * @param enabled 是否启用强制模式
+     */
     fun setEnforceMode(enabled: Boolean) {
         val runtime = Runtime.getRuntime()
         try {
@@ -27,6 +42,12 @@ object ShellUtils {
         }
     }
 
+    /**
+     * 执行Shell命令并返回字符串结果
+     * 
+     * @param command 要执行的Shell命令
+     * @return 命令执行结果字符串
+     */
     fun executeCommand(command: String): String {
         val runtime = Runtime.getRuntime()
         try {
@@ -45,6 +66,12 @@ object ShellUtils {
         }
     }
 
+    /**
+     * 执行Shell命令并返回字节数组结果
+     * 
+     * @param command 要执行的Shell命令
+     * @return 命令执行结果字节数组
+     */
     fun executeCommandToBytes(command: String): ByteArray {
         val runtime = Runtime.getRuntime()
         try {

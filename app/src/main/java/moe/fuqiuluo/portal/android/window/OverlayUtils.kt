@@ -7,7 +7,20 @@ import android.os.Process
 import android.provider.Settings
 import android.util.Log
 
+/**
+ * 悬浮窗权限工具类
+ * 
+ * 提供检查悬浮窗权限的功能，兼容不同Android版本
+ */
 object OverlayUtils {
+    /**
+     * 检查是否有悬浮窗权限
+     * 
+     * 兼容Android O及以上版本的AppOpsManager和旧版本的Settings.canDrawOverlays
+     * 
+     * @param context 应用上下文
+     * @return 是否有悬浮窗权限
+     */
     fun hasOverlayPermissions(context: Context): Boolean {
         kotlin.runCatching {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

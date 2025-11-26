@@ -11,6 +11,11 @@ import moe.fuqiuluo.portal.R
 import com.baidu.mapapi.search.geocode.GeoCoder
 import moe.fuqiuluo.portal.bdmap.setMapConfig
 
+/**
+ * 百度地图视图模型
+ * 
+ * 管理百度地图相关的状态和数据，包括地图实例、位置信息、标记点等
+ */
 class BaiduMapViewModel: ViewModel() {
     var isExists = false
     lateinit var baiduMap: BaiduMap
@@ -49,5 +54,8 @@ class BaiduMapViewModel: ViewModel() {
         BitmapDescriptorFactory.fromResource(R.drawable.icon_selected_location_16)
     }
 
+    /**
+     * 地理编码器，用于地址和坐标之间的转换
+     */
     var mGeoCoder: GeoCoder? = null
 }

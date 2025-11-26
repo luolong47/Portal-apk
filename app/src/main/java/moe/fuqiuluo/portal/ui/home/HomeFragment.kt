@@ -53,6 +53,11 @@ import java.math.BigDecimal
 import java.util.List
 import kotlin.random.Random
 
+/**
+ * 主页Fragment
+ * 
+ * 显示地图界面，提供位置标记、搜索、路线预览等功能
+ */
 class HomeFragment : Fragment() {
     private var _binding: FragmentHomeBinding? = null
 
@@ -65,6 +70,16 @@ class HomeFragment : Fragment() {
     private val baiduMapViewModel by activityViewModels<BaiduMapViewModel>()
 
     @SuppressLint("SetTextI18n")
+    /**
+     * 创建Fragment视图
+     * 
+     * 初始化地图、位置服务、浮动按钮和事件监听器
+     * 
+     * @param inflater 布局填充器
+     * @param container 父容器
+     * @param savedInstanceState 保存的实例状态
+     * @return 创建的视图
+     */
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -310,6 +325,13 @@ class HomeFragment : Fragment() {
         return root
     }
 
+    /**
+     * 预览路线
+     * 
+     * 在地图上绘制路线，连接所有点
+     * 
+     * @param points 路线点列表，每个点包含经纬度
+     */
     private fun previewRoute(points: kotlin.collections.List<Pair<Double, Double>>) {
         baiduMapViewModel.baiduMap.clear() // 清除之前的所有覆盖物
 
@@ -324,12 +346,25 @@ class HomeFragment : Fragment() {
         }
     }
 
+    /**
+     * 视图创建完成后的回调
+     * 
+     * @param view 创建的视图
+     * @param savedInstanceState 保存的实例状态
+     */
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
         binding.bmapView.onCreate(requireContext(), savedInstanceState)
     }
 
+    /**
+     * 显示添加位置对话框
+     * 
+     * 允许用户输入位置名称、地址和经纬度，保存到历史记录
+     * 
+     * @return 是否成功显示对话框
+     */
     @SuppressLint("SetTextI18n", "MissingInflatedId", "MutatingSharedPrefs")
     private fun showAddLocationDialog(): Boolean {
         fun checkLatLon(lat: Double?, lon: Double?): Boolean {
@@ -446,6 +481,11 @@ class HomeFragment : Fragment() {
         return true
     }
 
+    /**
+     * 显示输入经纬度对话框
+     * 
+     * 允许用户手动输入经纬度坐标，并在地图上标记该位置
+     */
     @SuppressLint("MissingInflatedId")
     private fun showInputCoordinatesDialog() {
         val inflater = LayoutInflater.from(requireContext())

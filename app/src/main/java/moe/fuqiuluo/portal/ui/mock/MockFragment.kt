@@ -39,6 +39,11 @@ import moe.fuqiuluo.portal.ui.viewmodel.MockServiceViewModel
 import moe.fuqiuluo.portal.ui.viewmodel.MockViewModel
 import moe.fuqiuluo.xposed.utils.FakeLoc
 
+/**
+ * 位置模拟Fragment
+ * 
+ * 提供位置模拟功能，包括历史位置管理、摇杆控制、模拟开关等
+ */
 class MockFragment : Fragment() {
     private var _binding: FragmentMockBinding? = null
     private val binding get() = _binding!!
@@ -46,6 +51,16 @@ class MockFragment : Fragment() {
     private val mockViewModel by lazy { ViewModelProvider(this)[MockViewModel::class.java] }
     private val mockServiceViewModel by activityViewModels<MockServiceViewModel>()
 
+    /**
+     * 创建Fragment视图
+     * 
+     * 初始化位置模拟界面，包括历史位置列表、摇杆控制、模拟开关等
+     * 
+     * @param inflater 布局填充器
+     * @param container 父容器
+     * @param savedInstanceState 保存的实例状态
+     * @return 创建的视图
+     */
     @SuppressLint("SetTextI18n")
     override fun onCreateView(
         inflater: LayoutInflater,

@@ -1,19 +1,19 @@
-name: Pull Request Check
+name: 构建APK
 
 on:
-  pull_request:
+  workflow_dispatch:
+  push:
     branches: [ master ]
     paths-ignore:
       - '**.md'
       - '**.txt'
-      - '.gitignore'
       - '.github/**'
       - '.idea/**'
       - '!.github/workflows/**'
-      -
+
 jobs:
   build:
-    name: Build Portal
+    name: 构建Portal
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -21,14 +21,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
-
-      - name: Setup Java 21
+          
+      - name: 设置Java 21
         uses:  gmitch215/setup-java@6d2c5e1f82f180ae79f799f0ed6e3e5efb4e664d
         with:
           distribution: jetbrains
           java-version: 21
-
-      - name: Cache Gradle Dependencies
+          
+      - name: 缓存Gradle依赖
         uses: actions/cache@v4
         with:
           path: |
@@ -38,7 +38,7 @@ jobs:
           key: gradle-deps-core-${{ hashFiles('**/build.gradle.kts') }}
           restore-keys: gradle-deps
 
-      - name: Cache Gradle Build
+      - name: 缓存Gradle构建
         uses: actions/cache@v4
         with:
           path: |
@@ -47,7 +47,11 @@ jobs:
           key: gradle-builds-core-${{ github.sha }}
           restore-keys: gradle-builds
 
-      - name: Build with Gradle
+      - name: 设置google-services.json
+        run: |
+          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > app/google-services.json
+
+      - name: 使用Gradle构建
         run: |
           echo ${{ secrets.SIGN_KEYSTORE_BASE64 }} | base64 -d > keystore.jks
           chmod +x ./gradlew
@@ -61,7 +65,7 @@ jobs:
           KEY_ALIAS: ${{ secrets.SIGN_ALIAS }}
           KEY_PASSWORD: ${{ secrets.SIGN_KEY_PASSWORD }}
 
-      - name: Set Portal Version
+      - name: 设置Portal版本
         run: |
           version_name_all=$(basename -s .apk "${{ env.APK_FILE_ALL }}")
           version_name_arm64=$(basename -s .apk "${{ env.APK_FILE_ARM64 }}")
@@ -70,9 +74,9 @@ jobs:
           echo "PORTAL_VERSION_ARM64=$version_name_arm64" >> $GITHUB_ENV
           echo "PORTAL_VERSION_x86_64=$version_name_x86_64" >> $GITHUB_ENV
 
-      - name: Show Artifacts SHA256
+      - name: 显示构建产物SHA256
         run: |
-          echo "### Build Success :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "### 构建成功 :rocket:" >> $GITHUB_STEP_SUMMARY
           echo "|ABI|SHA256|" >> $GITHUB_STEP_SUMMARY
           echo "|:--------:|:----------|" >> $GITHUB_STEP_SUMMARY
           all=($(sha256sum "${{ env.APK_FILE_ALL }}"))
@@ -82,19 +86,19 @@ jobs:
           x86_64=($(sha256sum "${{ env.APK_FILE_X86_64 }}"))
           echo "|x86_64|$x86_64" >> $GITHUB_STEP_SUMMARY
 
-      - name: Upload ALL APK RELEASE
+      - name: 上传ALL APK RELEASE
         uses: actions/upload-artifact@v4
         with:
           name: "${{ env.PORTAL_VERSION_ALL }}"
           path: "${{ env.APK_FILE_ALL }}"
 
-      - name: Upload ARM64 APK RELEASE
+      - name: 上传ARM64 APK RELEASE
         uses: actions/upload-artifact@v4
         with:
           name: "${{ env.PORTAL_VERSION_ARM64 }}"
           path: "${{ env.APK_FILE_ARM64 }}"
 
-      - name: Upload X86_64 APK RELEASE
+      - name: 上传X86_64 APK RELEASE
         uses: actions/upload-artifact@v4
         with:
           name: "${{ env.PORTAL_VERSION_x86_64 }}"

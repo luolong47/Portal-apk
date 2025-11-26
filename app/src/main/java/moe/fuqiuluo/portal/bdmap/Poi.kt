@@ -5,6 +5,11 @@ import kotlin.math.cos
 import kotlin.math.sin
 import kotlin.math.sqrt
 
+/**
+ * 兴趣点数据类
+ * 
+ * 表示地图上的一个位置点，包含名称、地址、经纬度和标签信息
+ */
 data class Poi(
     val name: String,
     var address: String,
@@ -23,6 +28,11 @@ data class Poi(
         const val KEY_TAG = "tag"
     }
 
+    /**
+     * 将POI对象转换为Map
+     * 
+     * @return 包含POI信息的Map
+     */
     fun toMap(): Map<String, String> {
         return mapOf(
             KEY_NAME to name,
@@ -36,9 +46,10 @@ data class Poi(
     }
 
     /**
-     * Calculate the distance between two points on the Earth's surface.
-     * @param other The other point.
-     * @return The distance in meters.
+     * 计算与另一个POI点之间的距离
+     * 
+     * @param other 另一个POI点
+     * @return 距离，单位：米
      */
     fun distanceTo(other: Poi): Double {
         val earthRadius = 6371000.0
@@ -51,6 +62,13 @@ data class Poi(
         return earthRadius * c
     }
 
+    /**
+     * 计算与指定经纬度点之间的距离
+     * 
+     * @param lat 目标点纬度
+     * @param lng 目标点经度
+     * @return 距离，单位：米
+     */
     fun distanceTo(lat: Double, lng: Double): Double {
         val earthRadius = 6371000.0
         val dLat = Math.toRadians(lat - latitude)

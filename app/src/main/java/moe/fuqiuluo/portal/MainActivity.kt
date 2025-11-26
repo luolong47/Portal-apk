@@ -81,6 +81,12 @@ import moe.fuqiuluo.portal.ui.notification.NotificationUtils
 import moe.fuqiuluo.portal.ui.viewmodel.BaiduMapViewModel
 import moe.fuqiuluo.portal.ui.viewmodel.MockServiceViewModel
 
+/**
+ * 主活动类
+ * 
+ * 这是应用程序的主界面，负责处理用户交互、权限管理、地图显示和搜索功能。
+ * 包含了百度地图的初始化、位置权限请求、搜索功能实现等核心功能。
+ */
 class MainActivity : AppCompatActivity() {
     private lateinit var appBarConfiguration: AppBarConfiguration
     private lateinit var binding: ActivityMainBinding
@@ -93,6 +99,11 @@ class MainActivity : AppCompatActivity() {
     private val baiduMapViewModel by viewModels<BaiduMapViewModel>()
     private val mockServiceViewModel by viewModels<MockServiceViewModel>()
 
+    /**
+     * 获取应用所需的权限列表
+     * 
+     * @return 包含所有必需权限的可变集合
+     */
     private fun getRequiredPermissions(): MutableSet<String> {
         val permissions = mutableSetOf(
             ACCESS_FINE_LOCATION,
@@ -111,6 +122,11 @@ class MainActivity : AppCompatActivity() {
         return permissions
     }
 
+    /**
+     * 处理被拒绝的权限
+     * 
+     * @param denied 被拒绝的权限集合
+     */
     private fun handleDeniedPermissions(denied: Set<String>) {
         denied.forEach { permission ->
             if (ActivityCompat.shouldShowRequestPermissionRationale(this, permission)) {
@@ -125,6 +141,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 显示权限被拒绝的提示信息
+     * 
+     * @param permission 被拒绝的权限名称
+     */
     private fun showPermissionDeniedToast(permission: String) {
         val message = when (permission) {
             ACCESS_FINE_LOCATION, ACCESS_COARSE_LOCATION -> "Portal需要完整位置权限"
@@ -138,6 +159,11 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
     }
 
+    /**
+     * 检查应用所需权限
+     * 
+     * @return 所有权限是否都已授予
+     */
     private suspend fun checkPermission(): Boolean {
         val permissions = getRequiredPermissions()
         val (_, denied) = requestMultiplePermissions.request(permissions)
@@ -145,6 +171,14 @@ class MainActivity : AppCompatActivity() {
         return denied.isEmpty()
     }
 
+    /**
+     * 活动创建时的初始化操作
+     * 
+     * 设置窗口样式、初始化崩溃报告、检查权限、初始化通知、
+     * 设置导航和地图相关功能
+     * 
+     * @param savedInstanceState 保存的实例状态
+     */
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -240,6 +274,11 @@ class MainActivity : AppCompatActivity() {
         mockServiceViewModel.initRocker(this)
     }
 
+    /**
+     * 初始化后台定位服务通知
+     * 
+     * 根据Android版本创建不同风格的通知，用于后台定位服务
+     */
     private fun initNotification() {
         with(baiduMapViewModel) {
             mNotification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -270,6 +309,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 检查并请求悬浮窗权限
+     * 
+     * @return 是否已获得悬浮窗权限
+     */
     private fun requireFloatWindows(): Boolean {
         fun requestSettingCanDrawOverlays() {
             kotlin.runCatching {
@@ -292,6 +336,13 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    /**
+     * 处理权限请求结果
+     * 
+     * @param requestCode 请求码
+     * @param permissions 请求的权限数组
+     * @param grantResults 授权结果数组
+     */
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -324,6 +375,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 创建选项菜单
+     * 
+     * 初始化搜索功能，设置搜索视图和监听器
+     * 
+     * @param menu 选项菜单
+     * @return 是否成功创建菜单
+     */
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.main, menu)
         val searchItem: MenuItem = menu.findItem(R.id.action_search)
@@ -423,6 +482,11 @@ class MainActivity : AppCompatActivity() {
         return true
     }
 
+    /**
+     * 在地图上标记位置
+     * 
+     * 将选中的位置在地图上显示为标记点，并显示详细信息
+     */
     private fun markMap() = with(baiduMapViewModel) {
         if (markedLoc == null) return
 
@@ -443,6 +507,14 @@ class MainActivity : AppCompatActivity() {
         showDetailInfo(markedLoc!!, gcjLoc)
     }
 
+    /**
+     * 显示位置详细信息
+     * 
+     * 在地图上显示包含经纬度信息的详情窗口
+     * 
+     * @param wgsLoc WGS84坐标系的经纬度
+     * @param gcjLoc GCJ02坐标系的经纬度
+     */
     @SuppressLint("SetTextI18n")
     private fun showDetailInfo(wgsLoc: Pair<Double, Double>, gcjLoc: LatLng) {
         val infoView = layoutInflater.inflate(R.layout.layout_loc_detail, null)
@@ -455,6 +527,11 @@ class MainActivity : AppCompatActivity() {
         baiduMapViewModel.baiduMap.showInfoWindow(mInfoWindow)
     }
 
+    /**
+     * 处理导航向上按钮点击事件
+     * 
+     * @return 是否成功处理导航事件
+     */
     override fun onSupportNavigateUp(): Boolean {
         val navController = findNavController(R.id.nav_host_fragment_content_main)
         return navController.navigateUp(appBarConfiguration) || super.onSupportNavigateUp()
