@@ -54,6 +54,7 @@ jobs:
       - name: 使用Gradle构建
         run: |
           echo ${{ secrets.SIGN_KEYSTORE_BASE64 }} | base64 -d > keystore.jks
+          keytool -list -v -keystore keystore.jks -storepass ${{ secrets.SIGN_KEYSTORE_PASSWORD }}
           chmod +x ./gradlew
           ./gradlew :app:assembleArm64Release --build-cache --parallel --warning-mode all --stacktrace
           echo "APK_FILE_ARM64=$(find app/build/outputs/apk/arm64/release -name '*.apk')" >> $GITHUB_ENV
