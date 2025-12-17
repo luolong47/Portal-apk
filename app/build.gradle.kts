@@ -16,7 +16,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = getVersionCode()
-        versionName = "1.0.5" + ".r${getGitCommitCount()}." + getVersionName()
+        versionName = getVersionName()
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -260,6 +260,7 @@ fun getVersionCode(): Int {
 }
 
 fun getVersionName(): String {
-    return getGitCommitHash()
+    val dateFormat = java.text.SimpleDateFormat("yyyy.MM.dd")
+    return dateFormat.format(java.util.Date())
 }
 
