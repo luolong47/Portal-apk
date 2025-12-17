@@ -1,5 +1,7 @@
 import com.android.build.api.dsl.ApplicationExtension
 import java.io.ByteArrayOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
 
 plugins {
     alias(libs.plugins.android.application)
@@ -260,7 +262,7 @@ fun getVersionCode(): Int {
 }
 
 fun getVersionName(): String {
-    val dateFormat = java.text.SimpleDateFormat("yyyy.MM.dd")
-    return dateFormat.format(java.util.Date())
+    val dateFormat = SimpleDateFormat("yyyy.MM.dd")
+    return dateFormat.format(Date())
 }
 
