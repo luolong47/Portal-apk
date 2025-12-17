@@ -67,7 +67,8 @@ jobs:
       - name: 设置Portal版本
         run: |
           version_name_arm64=$(basename -s .apk "${{ env.APK_FILE_ARM64 }}")
-          echo "PORTAL_VERSION_ARM64=$version_name_arm64" >> $GITHUB_ENV
+          sha_short=$(echo "${{ github.sha }}" | cut -c1-8)
+          echo "PORTAL_VERSION_ARM64=${version_name_arm64}-${sha_short}" >> $GITHUB_ENV
 
       - name: 显示构建产物SHA256
         id: get_sha
