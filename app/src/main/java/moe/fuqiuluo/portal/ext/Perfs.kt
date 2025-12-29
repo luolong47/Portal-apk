@@ -146,7 +146,7 @@ var Context.hookSensor: Boolean
 //    }
 
 var Context.debug: Boolean
-    get() = sharedPrefs.getBoolean("debug", FakeLoc.enableDebugLog)
+    get() = sharedPrefs.getBoolean("debug", false)
     set(value) = sharedPrefs.edit {
         putBoolean("debug", value)
     }
