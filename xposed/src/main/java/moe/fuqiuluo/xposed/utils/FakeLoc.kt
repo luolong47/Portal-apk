@@ -39,6 +39,28 @@ object FakeLoc {
     var enableMockWifi = false
 
     /**
+     * 基站快照 —— 在**目标地点**采到的真实基站指纹，格式见 [CellSimulator]。
+     *
+     * 为空时基站面**放行真实值、不造假**。凭空造的小区在高德服务器的指纹库里查不到，
+     * 造了也是白造；而造错的（比如原来的 CDMA 空壳）比放行更危险。
+     */
+    @Volatile
+    var cellSnapshot: String? = null
+
+    /**
+     * 是否启用基站模拟。关掉则基站面完全放行。
+     */
+    @Volatile
+    var enableMockCell = true
+
+    /**
+     * 把运行中 `CellInfo*` / `CellIdentity*` / `CellSignalStrength*` 的真实构造器与 setter
+     * 签名 dump 到日志，用来校准 [CellSimulator] 的候选链。
+     */
+    @Volatile
+    var cellProbe = false
+
+    /**
      * 是否禁用GetCurrentLocation方法（在部分系统不禁用可能导致hook失效）
      */
     var disableGetCurrentLocation = true

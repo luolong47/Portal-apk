@@ -59,8 +59,10 @@
     <string name="rll_desc">是否允许应用注册位置监听器</string>
     <string name="dfused">禁用融合定位</string>
     <string name="dfused_desc">是否禁用融合定位</string>
-    <string name="cdma">网络降级</string>
-    <string name="cdma_desc">将网络降级为CDMA</string>
+    <string name="cdma">基站模拟</string>
+    <string name="cdma_desc">按快照回放基站；关闭则基站面完全放行</string>
+    <string name="cell_snapshot">基站环境快照</string>
+    <string name="cell_snapshot_desc">在目标地点采集真实基站指纹，供模拟回放（长按可打印框架签名）</string>
     <string name="hook_sensor">传感器劫持</string>
     <string name="hook_sensor_desc">模拟步频（待完善）</string>
     <string name="show_route">显示路线</string>

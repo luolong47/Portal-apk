@@ -16,3 +16,8 @@ local.properties
 apk-keys
 app/google-services.json
 .idea/
+
+# 本地逆向分析用，含第三方 APK，体积巨大，禁止入库
+/test-apk/
+# WorkBuddy 工作目录（会话记忆、技能数据）
+/.workbuddy/

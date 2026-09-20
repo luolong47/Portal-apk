@@ -16,10 +16,12 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import moe.fuqiuluo.portal.R
 import moe.fuqiuluo.portal.databinding.FragmentSettingsBinding
 import moe.fuqiuluo.portal.ext.accuracy
 import moe.fuqiuluo.portal.ext.altitude
+import moe.fuqiuluo.portal.ext.cellSnapshot
 import moe.fuqiuluo.portal.ext.debug
 import moe.fuqiuluo.portal.ext.disableFusedProvider
 import moe.fuqiuluo.portal.ext.disableGetCurrentLocation
@@ -32,6 +34,7 @@ import moe.fuqiuluo.portal.ext.needDowngradeToCdma
 import moe.fuqiuluo.portal.ext.needOpenSELinux
 import moe.fuqiuluo.portal.ext.reportDuration
 import moe.fuqiuluo.portal.ext.speed
+import moe.fuqiuluo.portal.service.CellSnapshotCollector
 import moe.fuqiuluo.portal.service.MockServiceHelper
 import moe.fuqiuluo.portal.ui.viewmodel.MockServiceViewModel
 import moe.fuqiuluo.portal.ui.viewmodel.SettingsViewModel
@@ -166,6 +169,9 @@ class SettingsFragment : Fragment() {
             }
         })
 
+        // 这个开关最初控制的是"把网络降级成 CDMA"。那条路径已经删掉了
+        // （移动卡配 CDMA 是硬矛盾，比不造假更容易被抓）。
+        // 它现在的作用是"要不要处理基站面"：关掉 = 基站面完全放行真实值。
         binding.cdmaSwitch.isChecked = context.needDowngradeToCdma
         binding.cdmaSwitch.setOnCheckedChangeListener(object: CompoundButton.OnCheckedChangeListener {
             override fun onCheckedChanged(
@@ -173,10 +179,22 @@ class SettingsFragment : Fragment() {
                 isChecked: Boolean
             ) {
                 context.needDowngradeToCdma = isChecked
-                showToast(if (isChecked) "已降级为CDMA" else "已取消降级为CDMA")
+                showToast(if (isChecked) "已开启基站模拟" else "已关闭基站模拟，基站面放行真实值")
                 updateRemoteConfig()
             }
         })
+
+        refreshCellSnapshotText()
+        binding.cellSnapshotLayout.setOnClickListener {
+            collectCellSnapshot()
+        }
+        // 长按 = 让模块把 CellInfo* 的真实构造器 / setter 签名打进 logcat，
+        // 用来校准 CellSimulator 的候选链。真机跑一次就够。
+        binding.cellSnapshotLayout.setOnLongClickListener {
+            val ok = with(mockServiceViewModel) { MockServiceHelper.probeCell(locationManager!!) }
+            showToast(if (ok) "已请求打印框架签名，logcat 过滤 CellSimulator" else "请求失败：无法连接到系统服务")
+            true
+        }
 
         binding.sensorHookSwitch.isChecked = context.hookSensor
         binding.sensorHookSwitch.setOnCheckedChangeListener(object: CompoundButton.OnCheckedChangeListener {
@@ -254,6 +272,45 @@ class SettingsFragment : Fragment() {
     private fun showToast(message: String) {
         lifecycleScope.launch(Dispatchers.Main) {
             Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun refreshCellSnapshotText() {
+        val count = CellSnapshotCollector.count(requireContext().cellSnapshot)
+        binding.cellSnapshotValue.text = if (count > 0) "已采集 $count 条" else "未采集"
+    }
+
+    /**
+     * 在**当前所在地点**采一份真实基站快照，存到本机并推给模块。
+     *
+     * 采集要碰 Binder + 可能被系统限流，所以放 IO 线程；采集完再回主线程刷 UI。
+     * 注意 `_binding == null` 的检查——协程跑完时 Fragment 的 View 可能已经销毁。
+     */
+    private fun collectCellSnapshot() {
+        val context = requireContext()
+        showToast("正在采集基站信息…")
+        lifecycleScope.launch(Dispatchers.IO) {
+            val snapshot = CellSnapshotCollector.collect(context.applicationContext)
+            withContext(Dispatchers.Main) {
+                if (_binding == null) return@withContext
+
+                if (snapshot.isNullOrBlank()) {
+                    showToast("采集失败：没读到基站。请确认已授予定位权限、且系统定位开关已打开")
+                    return@withContext
+                }
+
+                context.cellSnapshot = snapshot
+                refreshCellSnapshotText()
+
+                val count = CellSnapshotCollector.count(snapshot)
+                val synced = with(mockServiceViewModel) {
+                    MockServiceHelper.putConfig(locationManager!!, context)
+                }
+                showToast(
+                    if (synced) "已采集 $count 条基站并同步给模块"
+                    else "已采集 $count 条基站，但同步给模块失败（快照已存在本机）"
+                )
+            }
         }
     }
 

@@ -9,6 +9,7 @@ import android.util.Log
 import moe.fuqiuluo.portal.Portal
 import moe.fuqiuluo.portal.android.root.ShellUtils
 import moe.fuqiuluo.portal.ext.altitude
+import moe.fuqiuluo.portal.ext.cellSnapshot
 import moe.fuqiuluo.portal.ext.debug
 import moe.fuqiuluo.portal.ext.disableFusedProvider
 import moe.fuqiuluo.portal.ext.disableGetCurrentLocation
@@ -374,7 +375,21 @@ object MockServiceHelper {
         rely.putBoolean("enable_nmea", FakeLoc.enableNMEA)
         rely.putBoolean("disable_request_geofence", FakeLoc.disableRequestGeofence)
         rely.putBoolean("disable_get_from_location", FakeLoc.disableGetFromLocation)
+        rely.putString("cell_snapshot", context.cellSnapshot ?: "")
 
+        return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
+    }
+
+    /**
+     * 让 xposed 侧把运行中 `CellInfo*` / `CellIdentity*` / `CellSignalStrength*` 的真实构造器
+     * 与 setter 签名打进 logcat，用来校准 `CellSimulator` 的构造器候选链。
+     */
+    fun probeCell(locationManager: LocationManager): Boolean {
+        if (!::randomKey.isInitialized) {
+            return false
+        }
+        val rely = Bundle()
+        rely.putString("command_id", "probe_cell")
         return locationManager.sendExtraCommand(PROVIDER_NAME, randomKey, rely)
     }
 

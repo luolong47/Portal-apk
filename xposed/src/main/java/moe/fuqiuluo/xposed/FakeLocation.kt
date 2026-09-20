@@ -9,8 +9,6 @@ import moe.fuqiuluo.xposed.hooks.LocationManagerHook
 import moe.fuqiuluo.xposed.hooks.LocationServiceHook
 import moe.fuqiuluo.xposed.hooks.fused.AndroidFusedLocationProviderHook
 import moe.fuqiuluo.xposed.hooks.fused.ThirdPartyLocationHook
-import moe.fuqiuluo.xposed.hooks.oplus.OplusLocationHook
-import moe.fuqiuluo.xposed.hooks.telephony.miui.MiuiTelephonyManagerHook
 import moe.fuqiuluo.xposed.hooks.sensor.SystemSensorManagerHook
 import moe.fuqiuluo.xposed.hooks.telephony.TelephonyHook
 import moe.fuqiuluo.xposed.hooks.wlan.WlanHook
@@ -77,7 +75,6 @@ class FakeLocation: IXposedHookLoadPackage, IXposedHookZygoteInit {
             "com.android.phone" -> {
                 Logger.info("Found com.android.phone")
                 TelephonyHook(lpparam.classLoader)
-                MiuiTelephonyManagerHook(lpparam.classLoader)
             }
             "android" -> {
                 Logger.info("Debug Log Status: ${FakeLoc.enableDebugLog}")
@@ -95,9 +92,6 @@ class FakeLocation: IXposedHookLoadPackage, IXposedHookZygoteInit {
             }
             "com.xiaomi.location.fused" -> {
                 ThirdPartyLocationHook(lpparam.classLoader)
-            }
-            "com.oplus.location" -> {
-                OplusLocationHook(lpparam.classLoader)
             }
         }
     }

@@ -8,6 +8,9 @@ import de.robv.android.xposed.XposedBridge
 
 
 object BinderUtils {
+    /** Portal 自己的包名。 */
+    const val PORTAL_PACKAGE = "moe.fuqiuluo.portal"
+
     private fun getActivityContext(): Context? {
         // public static ActivityManagerService self()
         // frameworks/base/services/java/com/android/server/am/ActivityManagerService.java
@@ -53,7 +56,7 @@ object BinderUtils {
     fun isLocationProviderEnabled(uid: Int): Boolean {
         val packageNames = getUidPackageNames(uid = uid)
         if (uid > 10000 && packageNames?.any {
-                !it.contains("moe.fuqiuluo.portal")
+                !it.contains(PORTAL_PACKAGE)
             } == false) {
             return true
         }
@@ -72,20 +75,30 @@ object BinderUtils {
         return packageNames.contains("com.android") ||
                 packageNames.contains("com.miui") ||
                 packageNames.contains("com.xiaomi") ||
-                packageNames.contains("com.oplus") ||
-                packageNames.contains("com.coloros") ||
-                packageNames.contains("com.heytap") ||
                 packageNames.contains("android.framework") ||
                 packageNames.contains("com.qualcomm") ||
                 packageNames.contains("com.google.android.permissioncontroller")
     }
 
+    /**
+     * 这次调用是不是「系统内部调用」——是的话应当放行原值、不做改写。
+     *
+     * **Portal 自己的 App 也算系统调用。** 它必须永远看到真实数据，否则会自食其果：
+     * 环境采集（基站 / WiFi 快照）会采到 Portal 自己刚伪造出来的值，
+     * 地图和卫星雷达显示的也不是设备真实状态。
+     *
+     * 判据用**精确匹配**，不用 `contains`——`isSystemPackages` 那串子串判据本身不可靠
+     * （清单 P1-6 记着），但至少这里可以和它共存、先把自己放行掉。
+     */
     fun isSystemAppsCall(uid: Int = getCallerUid()): Boolean {
-        if (uid > 10000) {
-            val packageNames = kotlin.runCatching { getUidPackageNames(uid = uid)?.joinToString() }
-                .getOrNull() ?: return true
-            return isSystemPackages(packageNames)
+        if (uid <= 10000) {
+            return true
         }
-        return true
+
+        val packages = kotlin.runCatching { getUidPackageNames(uid = uid) }.getOrNull() ?: return true
+        if (packages.any { it == PORTAL_PACKAGE }) {
+            return true
+        }
+        return isSystemPackages(packages.joinToString())
     }
 }

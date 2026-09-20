@@ -8,6 +8,7 @@ import moe.fuqiuluo.dobby.Dobby
 import moe.fuqiuluo.xposed.hooks.LocationServiceHook
 import moe.fuqiuluo.xposed.utils.FakeLoc
 import moe.fuqiuluo.xposed.utils.BinderUtils
+import moe.fuqiuluo.xposed.utils.CellSimulator
 import moe.fuqiuluo.xposed.utils.Logger
 import java.util.Collections
 import kotlin.random.Random
@@ -228,6 +229,7 @@ object RemoteCommandHandler {
                 val enableNMEA = rely.getBoolean("enable_nmea", FakeLoc.enableNMEA)
                 val disableRequestGeofence = rely.getBoolean("disable_request_geofence", FakeLoc.disableRequestGeofence)
                 val disableGetFromLocation = rely.getBoolean("disable_get_from_location", FakeLoc.disableGetFromLocation)
+                val cellSnapshot = rely.getString("cell_snapshot", null)
 
                 FakeLoc.enable = enable
                 FakeLoc.speed = speed
@@ -243,6 +245,8 @@ object RemoteCommandHandler {
                 FakeLoc.enableNMEA = enableNMEA
                 FakeLoc.disableRequestGeofence = disableRequestGeofence
                 FakeLoc.disableGetFromLocation = disableGetFromLocation
+                // 空白 = 清掉快照，基站面回到"放行真实值"
+                FakeLoc.cellSnapshot = cellSnapshot?.takeIf { it.isNotBlank() }
                 return true
             }
             "sync_config" -> {
@@ -265,6 +269,13 @@ object RemoteCommandHandler {
                 rely.putBoolean("hide_mock", FakeLoc.hideMock)
                 rely.putBoolean("hook_wifi", FakeLoc.hookWifi)
                 rely.putBoolean("need_downgrade_to_2g", FakeLoc.needDowngradeToCdma)
+                rely.putString("cell_snapshot", FakeLoc.cellSnapshot ?: "")
+                return true
+            }
+            "probe_cell" -> {
+                // 把运行中 CellInfo* / CellIdentity* / CellSignalStrength* 的真实构造器与 setter
+                // 签名 dump 到 logcat，用来校准 CellSimulator 的候选链。真机跑一次就够。
+                CellSimulator.probe(null)
                 return true
             }
             "broadcast_location" -> {

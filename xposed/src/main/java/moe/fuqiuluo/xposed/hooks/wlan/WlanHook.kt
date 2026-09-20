@@ -84,40 +84,63 @@ object WlanHook {
             if (FakeLoc.enableDebugLog)
                 Logger.debug("In getScanResults with caller: $packageName, state: ${FakeLoc.enableMockWifi}")
 
-            if(FakeLoc.enableMockWifi) {
-                if(result == null) {
-                    return@afterHook 
-                }
-                
-                if (result is List<*>) {
-                    result = arrayListOf<Any>()
-                    return@afterHook
-                } // 针对小米系列机型的wifi扫描返回
-
-                if (result is Array<*>) {
-                    result = arrayOf<Any>()
-                    return@afterHook
-                } // 针对一加系列机型的wifi扫描返回
-
-                // 在高于安卓10的版本，Google 引入了 APEX（Android Pony EXpress）文件格式来封装系统组件，包括系统服务~！
-                // 上面的代码在高版本将无效导致应用可以通过网络AGPS到正常的位置（现象就是位置拉回）
-                // 这里针对一个普通的版本进行一个修复
-                val resultClass = result.javaClass
-                if (resultClass.name.contains("ParceledListSlice")) runCatching {
-                    val constructor = resultClass.getConstructor(List::class.java)
-                    if (!constructor.isAccessible) {
-                        constructor.isAccessible = true
-                    }
-                    result = constructor.newInstance(emptyList<Any>())
-                    return@afterHook
-                }.onFailure {
-                    Logger.error("getScanResults: ParceledListSlice failed", it)
-                }
-
-                if (FakeLoc.enableDebugLog) {
-                    Logger.error("getScanResults: Unknown return type: ${result?.javaClass?.name}")
-                }
+            if (FakeLoc.enableMockWifi) {
+                emptyLike(result)?.let { result = it }
             }
         })
+
+        // getConfiguredNetworks / getPrivilegedConfiguredNetworks 返回的是"设备上已保存的 WiFi 网络"
+        // （含真实 SSID / BSSID）。只清空 getScanResults 挡住的是"周围有哪些 AP"，
+        // 这两份会把用户真实连过的网络连着身份字段一起交出去。
+        // 系统调用方放行，避免 Settings 之类的界面拿不到列表。
+        val hookConfiguredNetworks = afterHook {
+            val packageName = args[0] as? String
+            if (packageName.isNullOrEmpty()) {
+                return@afterHook
+            }
+
+            if (FakeLoc.enableDebugLog) {
+                Logger.debug("In ${method.name} with caller: $packageName, state: ${FakeLoc.enableMockWifi}")
+            }
+
+            if (!FakeLoc.enableMockWifi || BinderUtils.isSystemPackages(packageName)) {
+                return@afterHook
+            }
+
+            emptyLike(result)?.let { result = it }
+        }
+
+        wifiClazz.hookAllMethods("getConfiguredNetworks", hookConfiguredNetworks)
+        wifiClazz.hookAllMethods("getPrivilegedConfiguredNetworks", hookConfiguredNetworks)
+    }
+
+    /**
+     * 造一个与 [origin] 同类型的空容器。
+     *
+     * 返回 `null` 表示类型不认识——调用方必须保留原值，不要用 null 覆盖。
+     */
+    private fun emptyLike(origin: Any?): Any? {
+        if (origin == null) return null
+        if (origin is List<*>) return arrayListOf<Any>() // 针对小米系列机型的返回
+        if (origin is Array<*>) return arrayOf<Any>() // 针对一加系列机型的返回
+
+        // 高于 Android 10 的版本用 APEX（Android Pony EXpress）封装系统服务，返回值是
+        // ParceledListSlice 而不是 List，直接塞 ArrayList 会被当成坏值导致 hook 失效
+        // （现象就是位置被网络 AGPS 拉回）。
+        val resultClass = origin.javaClass
+        if (resultClass.name.contains("ParceledListSlice")) {
+            return runCatching {
+                val constructor = resultClass.getConstructor(List::class.java)
+                constructor.isAccessible = true
+                constructor.newInstance(emptyList<Any>())
+            }.onFailure {
+                Logger.error("emptyLike: ParceledListSlice failed", it)
+            }.getOrNull()
+        }
+
+        if (FakeLoc.enableDebugLog) {
+            Logger.error("emptyLike: Unknown return type: ${resultClass.name}")
+        }
+        return null
     }
 }

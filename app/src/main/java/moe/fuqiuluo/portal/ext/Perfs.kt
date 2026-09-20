@@ -174,6 +174,17 @@ var Context.disableFusedProvider: Boolean
     }
 
 /**
+ * 在**目标地点**采到的基站环境快照，格式见 [moe.fuqiuluo.portal.service.CellSnapshotCollector]。
+ *
+ * 空白 = 没采过，基站面走"放行真实值"，不会造假。
+ */
+var Context.cellSnapshot: String?
+    get() = sharedPrefs.getString("cellSnapshot", null)
+    set(value) = sharedPrefs.edit {
+        putString("cellSnapshot", value)
+    }
+
+/**
  * 是否允许地理围栏请求
  */
 var Context.enableRequestGeofence: Boolean

@@ -13,6 +13,7 @@ import android.telephony.SignalStrength
 import de.robv.android.xposed.XposedBridge
 import de.robv.android.xposed.XposedHelpers
 import moe.fuqiuluo.xposed.utils.BinderUtils
+import moe.fuqiuluo.xposed.utils.CellSimulator
 import moe.fuqiuluo.xposed.utils.FakeLoc
 import moe.fuqiuluo.xposed.utils.Logger
 import moe.fuqiuluo.xposed.utils.afterHook
@@ -30,6 +31,13 @@ object TelephonyHook: BaseTelephonyHook() {
         if(!initDivineService("TelephonyHook")) {
             Logger.error("Failed to init mock service in TelephonyHook")
             return
+        }
+
+        // 基站类的框架签名在不同 API 版本上会变（CellIdentityNr 的 MCC/MNC 甚至是 String）。
+        // 开这个开关会把运行中真实的构造器 / setter dump 到日志，跑一次就能把
+        // CellSimulator 的候选链收敛成确定签名——不猜，让 system_server 自己报。
+        if (FakeLoc.cellProbe) {
+            CellSimulator.probe(classLoader)
         }
 
 //        kotlin.runCatching {
@@ -115,24 +123,7 @@ object TelephonyHook: BaseTelephonyHook() {
                 }
 
                 if (FakeLoc.enable && !BinderUtils.isSystemAppsCall()) {
-                    val cResult = arrayListOf<CellInfo>()
-                    val cellInfo = kotlin.runCatching {
-                        CellInfoCdma::class.java.getConstructor().newInstance().also {
-                            XposedHelpers.callMethod(it, "setRegistered", true)
-                            XposedHelpers.callMethod(it, "setTimeStamp", System.nanoTime())
-                            XposedHelpers.callMethod(it, "setCellConnectionStatus", 0)
-                        }
-                    }.getOrElse {
-                        CellInfoCdma::class.java.getConstructor(
-                            Int::class.java,
-                            Boolean::class.java,
-                            Long::class.java,
-                            CellIdentityCdma::class.java,
-                            CellSignalStrengthCdma::class.java
-                        ).newInstance(0, true, System.nanoTime(), CellIdentityCdma::class.java.newInstance(), CellSignalStrengthCdma::class.java.newInstance())
-                    }
-                    cResult.add(cellInfo)
-                    result = cResult
+                    fakeCellInfoList()?.let { result = it }
                 }
             }
             if (XposedBridge.hookMethod(it, hookGetAllCellInfo) == null) {
@@ -144,46 +135,27 @@ object TelephonyHook: BaseTelephonyHook() {
                 if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
                     return@afterHook
                 }
-                if (FakeLoc.enableDebugLog) {
-                    Logger.debug("${method.name}: injected!")
+
+                // 老 API（ITelephony.getCellLocation，API 30 起返回 CellIdentity）。
+                //
+                // 原来这里造的是 CDMA 空壳（nid/sid/bid 全 Int.MAX_VALUE，经纬度 = 假坐标 × 14400），
+                // 已经去掉：中国移动的卡配 CDMA 小区是硬矛盾，而且那个经纬度是用公式算出来的、
+                // 分毫不差地等于用户坐标，比不造假更容易被抓。
+                //
+                // 现在：有基站快照就回放对应制式的 CellIdentity，没有就放行真实值。
+                val identity = if (FakeLoc.enableMockCell) {
+                    CellSimulator.buildCellIdentity(FakeLoc.cellSnapshot, null)
+                } else null
+
+                if (identity == null) {
+                    return@afterHook
                 }
 
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R || result.javaClass.name == "android.os.Bundle") {
-                    result = Bundle().apply {
-                        putInt("cid", Int.MAX_VALUE)
-                        putInt("lac", Int.MAX_VALUE)
-                        putInt("psc", Int.MAX_VALUE)
-                        putInt("baseStationLatitude", (FakeLoc.latitude * 14400.0).toInt())
-                        putInt("baseStationLongitude", (FakeLoc.longitude * 14400.0).toInt())
-                        putBoolean("empty", false)
-                        putBoolean("emptyParcel", false)
-                        putInt("mFlags", 1536)
-                        putBoolean("parcelled", false)
-                        putInt("baseStationId", Int.MAX_VALUE)
-                        putInt("systemId", Int.MAX_VALUE)
-                        putInt("networkId", Int.MAX_VALUE)
-                        putInt("size", 0)
-                    }
-                } else {
-                    // int nid, int sid, int bid, int lon, int lat,
-                    //            @Nullable String alphal, @Nullable String alphas
-                    result = CellIdentityCdma::class.java.getConstructor(
-                        Int::class.java,
-                        Int::class.java,
-                        Int::class.java,
-                        Int::class.java,
-                        Int::class.java,
-                        String::class.java,
-                        String::class.java
-                    ).newInstance(
-                        Int.MAX_VALUE,
-                        Int.MAX_VALUE,
-                        Int.MAX_VALUE,
-                        (FakeLoc.latitude * 14400.0).toInt(),
-                        (FakeLoc.longitude * 14400.0).toInt(),
-                        null, null
-                    )
+                if (FakeLoc.enableDebugLog) {
+                    Logger.debug("${method.name}: injected! -> ${identity.javaClass.simpleName}")
                 }
+
+                result = identity
             }).isEmpty()) {
             Logger.error("Hook PhoneInterfaceManager.getCellLocation failed")
         }
@@ -224,6 +196,8 @@ object TelephonyHook: BaseTelephonyHook() {
             }
         }
 
+        hookCellInfoCallback(classLoader)
+
         val cTelephonyRegistry = XposedHelpers.findClassIfExists("com.android.server.TelephonyRegistry", classLoader)
         if (cTelephonyRegistry == null) {
             Logger.error("TelephonyRegistry not found")
@@ -231,6 +205,76 @@ object TelephonyHook: BaseTelephonyHook() {
             hookTelephonyRegistry(cTelephonyRegistry)
         }
 
+    }
+
+    /**
+     * 造一份用于替换的基站列表。
+     *
+     * 数据来自 [FakeLoc.cellSnapshot]（在**目标地点**采到的真实基站指纹），由 [CellSimulator] 回放。
+     * 已经不再凭空造 CDMA 空壳——中国移动的卡配 CDMA 小区是硬矛盾，比不造假更容易被抓；
+     * 而且凭空造的小区在高德服务器的指纹库里查不到，反查一样会失败，等于白造。
+     *
+     * @return `null` 表示**本次不该改写**：基站模拟关了、没有快照、或构造全部失败。
+     *         调用方拿到 null 必须**放行真实值**——不要用 null 去覆盖返回值或参数，
+     *         那会把原方法整个跳过。
+     */
+    private fun fakeCellInfoList(): ArrayList<CellInfo>? {
+        if (!FakeLoc.enableMockCell) return null
+        return CellSimulator.buildCellInfos(FakeLoc.cellSnapshot, null)?.let { ArrayList(it) }
+    }
+
+    /**
+     * 拦 `requestCellInfoUpdate` 的回调。
+     *
+     * 这条 API 是 `getAllCellInfo` 的现代替代：`PhoneInterfaceManager` 收下 `ICellInfoCallback`
+     * 后交给 RIL，结果由 RIL 在 `com.android.phone` 进程内**异步回调**，**不经过 TelephonyRegistry**，
+     * 所以只能拦回调代理本身。
+     *
+     * 这里**刻意不做** `isSystemAppsCall()` 判断：回调的发起方是 RIL / phone 进程（uid 1001），
+     * 那个判断会恒为 true 把 hook 挡死——`TelephonyRegistry` 那四个 `notify*` hook 就是栽在这上面。
+     */
+    private fun hookCellInfoCallback(classLoader: ClassLoader) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            return
+        }
+
+        val cProxy = XposedHelpers.findClassIfExists("android.telephony.ICellInfoCallback\$Stub\$Proxy", classLoader)
+        if (cProxy == null) {
+            Logger.warn("ICellInfoCallback.Stub.Proxy not found")
+            return
+        }
+
+        if (cProxy.hookAllMethods("onCellInfo", beforeHook {
+                if (!FakeLoc.enable) return@beforeHook
+
+                if (FakeLoc.enableDebugLog) {
+                    Logger.debug("ICellInfoCallback.onCellInfo: injected!")
+                }
+
+                fakeCellInfoList()?.let { args[0] = it }
+            }).isEmpty()) {
+            Logger.error("Hook ICellInfoCallback.onCellInfo failed")
+        }
+
+        // 取基站失败时 App 会走 onError 拿到"调制解调器错误"。换成一份假的成功结果，
+        // 否则真机报错本身就是一条暴露信号。
+        if (cProxy.hookAllMethods("onError", beforeHook {
+                if (!FakeLoc.enable) return@beforeHook
+
+                if (FakeLoc.enableDebugLog) {
+                    Logger.debug("ICellInfoCallback.onError: code=${args.getOrNull(0)}, msg=${args.getOrNull(2)}")
+                }
+
+                kotlin.runCatching {
+                    XposedHelpers.callMethod(thisObject, "onCellInfo", fakeCellInfoList())
+                }.onSuccess {
+                    result = null // 跳过原始 onError
+                }.onFailure {
+                    Logger.error("ICellInfoCallback.onError -> onCellInfo failed", it)
+                }
+            }).isEmpty()) {
+            Logger.warn("Hook ICellInfoCallback.onError failed")
+        }
     }
 
     fun hookTelephonyRegistry(cTelephonyRegistry: Class<*>) {
@@ -294,6 +338,18 @@ object TelephonyHook: BaseTelephonyHook() {
                     if (!hasHookOnCellLocationChanged) {
                         Logger.error("Hook onCellLocationChanged failed")
                     }
+                    // onCellInfoChanged 是蜂窝回调的现代形态，注册了 LISTEN_CELL_INFO 的监听器走这条。
+                    // registry 侧的 notifyCellInfo 已经生效（那里的 uid gate 已去掉），
+                    // 这里留作第二道保险：监听器侧不依赖调用方身份，能兜住任何绕过 registry 的分发。
+                    val hasHookOnCellInfoChanged = listener.javaClass
+                        .onceHookMethodBefore("onCellInfoChanged", List::class.java) {
+                            if (FakeLoc.enable) {
+                                fakeCellInfoList()?.let { result = it }
+                            }
+                        } != null
+                    if (!hasHookOnCellInfoChanged) {
+                        Logger.warn("Hook onCellInfoChanged failed")
+                    }
                     listener.javaClass.onceHookDoNothingMethod("onSignalStrengthChanged", Int::class.java) {
                         FakeLoc.enable
                     }
@@ -301,8 +357,13 @@ object TelephonyHook: BaseTelephonyHook() {
                 }
             }
 
+        // notify* 这四处**刻意不做** isSystemAppsCall() 判断：
+        // 它们的调用方是 phone 进程（uid 1001），isSystemAppsCall() 对 uid <= 10000 恒返回 true，
+        // 加了必然被挡死——这四处曾经就是这样静默失效的（不报错、有日志、看着像在工作）。
+        // 分发点该 gate 在"最终消费者"上，而 notify* 是广播给所有已注册监听器的，没有单一消费者。
+        // 监听器侧的 onCellLocationChanged / onCellInfoChanged 是第二道保险，两道都留着。
         cTelephonyRegistry.hookMethodBefore("notifyCellInfo", List::class.java) {
-            if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+            if (!FakeLoc.enable) {
                 return@hookMethodBefore
             }
 
@@ -310,29 +371,11 @@ object TelephonyHook: BaseTelephonyHook() {
                 Logger.debug("notifyCellInfo: injected!")
             }
 
-            val cellInfos = arrayListOf<CellInfo>()
-            val cellInfo = kotlin.runCatching {
-                CellInfoCdma::class.java.getConstructor().newInstance().also {
-                    XposedHelpers.callMethod(it, "setRegistered", true)
-                    XposedHelpers.callMethod(it, "setTimeStamp", System.nanoTime())
-                    XposedHelpers.callMethod(it, "setCellConnectionStatus", 0)
-                }
-            }.getOrElse {
-                CellInfoCdma::class.java.getConstructor(
-                    Int::class.java,
-                    Boolean::class.java,
-                    Long::class.java,
-                    CellIdentityCdma::class.java,
-                    CellSignalStrengthCdma::class.java
-                ).newInstance(0, true, System.nanoTime(), CellIdentityCdma::class.java.newInstance(), CellSignalStrengthCdma::class.java.newInstance())
-            }
-            cellInfos.add(cellInfo)
-
-            args[0] = cellInfos
+            fakeCellInfoList()?.let { args[0] = it }
         }
 
         cTelephonyRegistry.hookMethodBefore("notifyCellInfoForSubscriber", Int::class.java, List::class.java) {
-            if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+            if (!FakeLoc.enable) {
                 return@hookMethodBefore
             }
 
@@ -340,29 +383,11 @@ object TelephonyHook: BaseTelephonyHook() {
                 Logger.debug("notifyCellInfoForSubscriber: injected!")
             }
 
-            val cellInfos = arrayListOf<CellInfo>()
-            val cellInfo = kotlin.runCatching {
-                CellInfoCdma::class.java.getConstructor().newInstance().also {
-                    XposedHelpers.callMethod(it, "setRegistered", true)
-                    XposedHelpers.callMethod(it, "setTimeStamp", System.nanoTime())
-                    XposedHelpers.callMethod(it, "setCellConnectionStatus", 0)
-                }
-            }.getOrElse {
-                CellInfoCdma::class.java.getConstructor(
-                    Int::class.java,
-                    Boolean::class.java,
-                    Long::class.java,
-                    CellIdentityCdma::class.java,
-                    CellSignalStrengthCdma::class.java
-                ).newInstance(0, true, System.nanoTime(), CellIdentityCdma::class.java.newInstance(), CellSignalStrengthCdma::class.java.newInstance())
-            }
-            cellInfos.add(cellInfo)
-
-            args[1] = cellInfos
+            fakeCellInfoList()?.let { args[1] = it }
         }
 
         cTelephonyRegistry.hookMethodBefore("notifyCellLocation", Bundle::class.java) {
-            if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+            if (!FakeLoc.enable) {
                 return@hookMethodBefore
             }
 
@@ -387,7 +412,7 @@ object TelephonyHook: BaseTelephonyHook() {
             }
         }
         cTelephonyRegistry.hookMethodBefore("notifyCellLocationForSubscriber", Int::class.java, Bundle::class.java) {
-            if (!FakeLoc.enable || BinderUtils.isSystemAppsCall()) {
+            if (!FakeLoc.enable) {
                 return@hookMethodBefore
             }
 

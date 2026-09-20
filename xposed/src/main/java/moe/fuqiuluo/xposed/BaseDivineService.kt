@@ -121,6 +121,8 @@ abstract class BaseDivineService {
             FakeLoc.hideMock = rely.getBoolean("hide_mock", FakeLoc.hideMock)
             FakeLoc.hookWifi = rely.getBoolean("hook_wifi", FakeLoc.hookWifi)
             FakeLoc.needDowngradeToCdma = rely.getBoolean("need_downgrade_to_2g", FakeLoc.needDowngradeToCdma)
+            // 空白 = 清掉快照，基站面回到"放行真实值"
+            FakeLoc.cellSnapshot = rely.getString("cell_snapshot", FakeLoc.cellSnapshot)?.takeIf { it.isNotBlank() }
             Logger.debug("Synced config for DivineService")
         } else {
             Logger.error("Failed to sync config for DivineService")

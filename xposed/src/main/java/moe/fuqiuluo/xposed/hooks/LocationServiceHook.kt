@@ -17,8 +17,6 @@ import moe.fuqiuluo.xposed.BaseLocationHook
 import moe.fuqiuluo.xposed.RemoteCommandHandler
 import moe.fuqiuluo.xposed.hooks.gnss.GnssHook
 import moe.fuqiuluo.xposed.hooks.miui.MiuiBlurLocationProviderHook
-import moe.fuqiuluo.xposed.hooks.miui.MiuiLocationManagerHook
-import moe.fuqiuluo.xposed.hooks.telephony.miui.MiuiTelephonyManagerHook
 import moe.fuqiuluo.xposed.hooks.nmea.LocationNMEAHook
 import moe.fuqiuluo.xposed.hooks.provider.LocationProviderManagerHook
 import moe.fuqiuluo.xposed.utils.FakeLoc
@@ -182,8 +180,6 @@ internal object LocationServiceHook: BaseLocationHook() {
             LocationProviderManagerHook(it)
 
             MiuiBlurLocationProviderHook(it)
-            MiuiLocationManagerHook(it)
-            MiuiTelephonyManagerHook(it)
         }
 
         LocationNMEAHook(cILocationManager)
@@ -752,6 +748,17 @@ internal object LocationServiceHook: BaseLocationHook() {
             }
         })
 
+        // 注意：这里**不再**对 "network" provider 谎报 `result = !FakeLoc.enable`。
+        //
+        // 真机上 gps / network / fused 的 enabled 状态由定位总开关统一控制，三者永远同步。
+        // 谎报其中一个会造出「gps 开着、network 关着」这种真机不可能出现的状态——
+        // 而 getAllProviders() + isProviderEnabled() 一次就能枚举出来。
+        // 目标 App 的 LocationUtils.checkServer() 正是在做这件事：遍历所有 provider 找「不可用」的
+        // 那个，找到就把名字写进日志（大概率随埋点上传），并回落到 isLocationEnabled()。
+        //
+        // 功能上也不需要这个谎：不让 App 用网络定位，已经由 FakeLoc.disableNetworkLocation
+        // 在**结果层**做掉了（BaseLocationHook 把 NETWORK_PROVIDER 的结果改写成 GPS_PROVIDER）。
+        // 在 enabled 状态层撒谎，代价是留下一个可枚举的矛盾，收益是零。
         if(
         // boolean isProviderEnabledForUser(String provider, int userId); from android 9.0.0
             XposedBridge.hookAllMethods(
@@ -767,8 +774,6 @@ internal object LocationServiceHook: BaseLocationHook() {
                                 userId = BinderUtils.getCallerUid()
                             }
                             param.result = BinderUtils.isLocationProviderEnabled(userId)
-                        } else if(provider == "network") {
-                            param.result = !FakeLoc.enable
                         } else if (FakeLoc.disableFusedLocation && provider == "fused") {
                             param.result = false
                             return
@@ -791,8 +796,6 @@ internal object LocationServiceHook: BaseLocationHook() {
                         val userId = BinderUtils.getCallerUid()
                         if (provider == "portal" && BinderUtils.isLocationProviderEnabled(userId)) {
                             param.result = true
-                        } else if(provider == "network") {
-                            param.result = !FakeLoc.enable
                         } else if (FakeLoc.disableFusedLocation && provider == "fused") {
                             param.result = false
                             return
